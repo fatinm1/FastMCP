@@ -1,0 +1,11 @@
+PROMPT.md
+.env
+.chroma/
+__pycache__/
+*.pyc
+*.egg-info/
+dist/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
