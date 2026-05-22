@@ -47,6 +47,23 @@
     /* ── Animations ───────────────────────────────────────────────────────── */
     @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
 
+    @keyframes mesh-float-1 {
+      0%   { transform: translate(0, 0) scale(1); }
+      100% { transform: translate(9%, 13%) scale(1.12); }
+    }
+    @keyframes mesh-float-2 {
+      0%   { transform: translate(0, 0) scale(1); }
+      100% { transform: translate(-11%, -9%) scale(1.07); }
+    }
+    @keyframes mesh-float-3 {
+      0%   { transform: translate(0, 0) scale(1); }
+      100% { transform: translate(7%, -14%) scale(0.93); }
+    }
+    @keyframes mesh-float-4 {
+      0%   { transform: translate(0, 0) scale(1); }
+      100% { transform: translate(-9%, 11%) scale(1.1); }
+    }
+
     /* ── Canvas Wrapper ───────────────────────────────────────────────────── */
     .canvas {
       max-width: 1400px;
@@ -55,21 +72,27 @@
       border-radius: 40px;
       overflow: hidden;
       box-shadow: 0 25px 60px rgba(0,0,0,0.12);
+      position: relative;
     }
 
     /* ════════════════════════════════════════════════════════════════════════
        SECTION 1 — NAVBAR
     ════════════════════════════════════════════════════════════════════════ */
-    .navbar {
-      position: sticky;
+    .hero > header {
+      position: absolute;
       top: 0;
+      left: 0;
+      right: 0;
       z-index: 100;
+    }
+
+    .navbar {
       display: flex;
       align-items: center;
       justify-content: space-between;
       padding: 20px 40px;
       background: transparent;
-      border-bottom: none;
+      border: none;
     }
 
     .nav-logo {
@@ -89,8 +112,10 @@
     .nav-pill {
       display: flex;
       align-items: center;
-      background: rgba(255,255,255,0.1);
-      border: 1px solid rgba(255,255,255,0.1);
+      background: rgba(30,30,30,0.6);
+      border: 1px solid rgba(255,255,255,0.15);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
       border-radius: 100px;
       padding: 4px;
       gap: 2px;
@@ -164,7 +189,7 @@
     ════════════════════════════════════════════════════════════════════════ */
     .hero {
       position: relative;
-      background: var(--color-dark);
+      background: #0a0a1a;
       color: #fff;
       min-height: 88vh;
       overflow: hidden;
@@ -177,19 +202,60 @@
       inset: 0;
       z-index: 0;
     }
-    .hero-bg-gradient {
+
+    /* Mesh gradient base */
+    .mesh-base {
       position: absolute;
       inset: 0;
-      background:
-        radial-gradient(ellipse at 20% 50%, rgba(254,215,170,0.06) 0%, transparent 60%),
-        radial-gradient(ellipse at 80% 20%, rgba(59,130,246,0.04) 0%, transparent 50%);
+      background: #0a0a1a;
     }
+
+    /* Animated color blobs */
+    .mesh-blob {
+      position: absolute;
+      border-radius: 50%;
+      filter: blur(90px);
+    }
+    .blob-purple {
+      width: 65%;
+      height: 75%;
+      top: -15%;
+      left: -10%;
+      background: radial-gradient(ellipse, rgba(76,29,149,0.9) 0%, transparent 70%);
+      animation: mesh-float-1 12s infinite alternate ease-in-out;
+    }
+    .blob-violet {
+      width: 55%;
+      height: 65%;
+      top: 25%;
+      right: -8%;
+      background: radial-gradient(ellipse, rgba(124,58,237,0.75) 0%, transparent 70%);
+      animation: mesh-float-2 12s infinite alternate ease-in-out;
+    }
+    .blob-teal {
+      width: 45%;
+      height: 55%;
+      bottom: -15%;
+      left: 15%;
+      background: radial-gradient(ellipse, rgba(13,148,136,0.7) 0%, transparent 70%);
+      animation: mesh-float-3 12s infinite alternate ease-in-out;
+    }
+    .blob-amber {
+      width: 38%;
+      height: 48%;
+      top: 5%;
+      right: 18%;
+      background: radial-gradient(ellipse, rgba(180,83,9,0.6) 0%, transparent 70%);
+      animation: mesh-float-4 12s infinite alternate ease-in-out;
+    }
+
+    /* Subtle grid overlay on top of mesh */
     .hero-bg-grid {
       position: absolute;
       inset: 0;
       background-image:
-        linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px);
+        linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
       background-size: 60px 60px;
     }
 
@@ -821,7 +887,14 @@
       body { padding: 0 0 12px; }
       .canvas { border-radius: 0; box-shadow: none; }
 
-      /* Navbar */
+      /* Navbar — fixed at top with dark bg on mobile */
+      .hero > header {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        z-index: 200;
+      }
       .navbar {
         padding: 16px 20px;
         background: rgba(15,15,15,0.92);
@@ -863,37 +936,41 @@
 </head>
 <body>
 
-  <!-- ══ Sticky Navbar ══════════════════════════════════════════════════════ -->
-  <header style="position:sticky;top:0;z-index:100;">
-    <nav class="navbar">
-      <a href="#" class="nav-logo">GC</a>
-
-      <div class="nav-pill">
-        <a href="#tools" class="nav-link">Tools</a>
-        <a href="#rag" class="nav-link">RAG</a>
-        <a href="#stats" class="nav-link">Stats</a>
-        <a href="https://github.com/fatinm1/FastMCP" target="_blank" rel="noopener" class="nav-cta">GitHub →</a>
-      </div>
-
-      <button class="hamburger" id="mobile-menu-btn" aria-label="Open menu">
-        <span></span><span></span><span></span>
-      </button>
-    </nav>
-
-    <div class="mobile-menu hidden" id="mobile-menu">
-      <a href="#tools">Tools</a>
-      <a href="#rag">RAG</a>
-      <a href="#stats">Stats</a>
-      <a href="https://github.com/fatinm1/FastMCP" target="_blank" rel="noopener">GitHub →</a>
-    </div>
-  </header>
-
   <div class="canvas">
 
-    <!-- ══ Hero ══════════════════════════════════════════════════════════════ -->
+    <!-- ══ Hero (navbar lives inside hero so it can be absolute over it) ══════ -->
     <section class="hero">
+
+      <header>
+        <nav class="navbar">
+          <a href="#" class="nav-logo">GC</a>
+
+          <div class="nav-pill">
+            <a href="#tools" class="nav-link">Tools</a>
+            <a href="#rag" class="nav-link">RAG</a>
+            <a href="#stats" class="nav-link">Stats</a>
+            <a href="https://github.com/fatinm1/FastMCP" target="_blank" rel="noopener" class="nav-cta">GitHub →</a>
+          </div>
+
+          <button class="hamburger" id="mobile-menu-btn" aria-label="Open menu">
+            <span></span><span></span><span></span>
+          </button>
+        </nav>
+
+        <div class="mobile-menu hidden" id="mobile-menu">
+          <a href="#tools">Tools</a>
+          <a href="#rag">RAG</a>
+          <a href="#stats">Stats</a>
+          <a href="https://github.com/fatinm1/FastMCP" target="_blank" rel="noopener">GitHub →</a>
+        </div>
+      </header>
+
       <div class="hero-bg">
-        <div class="hero-bg-gradient"></div>
+        <div class="mesh-base"></div>
+        <div class="mesh-blob blob-purple"></div>
+        <div class="mesh-blob blob-violet"></div>
+        <div class="mesh-blob blob-teal"></div>
+        <div class="mesh-blob blob-amber"></div>
         <div class="hero-bg-grid"></div>
       </div>
 
