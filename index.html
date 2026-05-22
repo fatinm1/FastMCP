@@ -1,0 +1,1226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>govcon-mcp — Federal Contracting Intelligence for AI Agents</title>
+  <meta name="description" content="10 MCP tools connecting AI agents to SAM.gov opportunities, USASpending award data, and a RAG layer over solicitation PDFs. Built for GovCon BD teams." />
+  <link href="https://fonts.googleapis.com/css2?family=Inter+Tight:wght@300;400;500;600;700&family=Playfair+Display:ital,wght@0,400;1,400&display=swap" rel="stylesheet" />
+  <style>
+    /* ── Reset & Base ─────────────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    ::selection { background: #fed7aa; color: #000; }
+
+    :root {
+      --color-dark:      #0F0F0F;
+      --color-canvas:    #F4F5F7;
+      --color-surface:   #FFFFFF;
+      --color-surface-2: #F8F9FA;
+      --color-outer:     #EAECEF;
+      --color-accent:    #fed7aa;
+      --color-accent-2:  #f59e0b;
+      --color-text-1:    #1a1a1a;
+      --color-text-2:    #6b7280;
+      --color-text-3:    #9ca3af;
+      --color-border:    rgba(0,0,0,0.06);
+      --color-border-w:  rgba(255,255,255,0.1);
+    }
+
+    body {
+      font-family: 'Inter Tight', sans-serif;
+      background: var(--color-outer);
+      padding: 0 16px 16px;
+      min-height: 100vh;
+    }
+
+    a { text-decoration: none; }
+
+    /* ── Scroll Reveal ────────────────────────────────────────────────────── */
+    .fade-in {
+      opacity: 0;
+      transform: translateY(24px);
+      transition: opacity 0.7s ease, transform 0.7s ease;
+    }
+    .fade-in.visible { opacity: 1; transform: translateY(0); }
+
+    /* ── Animations ───────────────────────────────────────────────────────── */
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+    /* ── Canvas Wrapper ───────────────────────────────────────────────────── */
+    .canvas {
+      max-width: 1400px;
+      margin: 0 auto;
+      background: var(--color-canvas);
+      border-radius: 40px;
+      overflow: hidden;
+      box-shadow: 0 25px 60px rgba(0,0,0,0.12);
+    }
+
+    /* ════════════════════════════════════════════════════════════════════════
+       SECTION 1 — NAVBAR
+    ════════════════════════════════════════════════════════════════════════ */
+    .navbar {
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 20px 40px;
+      background: rgba(15,15,15,0.92);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+    }
+
+    .nav-logo {
+      width: 36px;
+      height: 36px;
+      background: var(--color-accent);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 13px;
+      color: #000;
+      flex-shrink: 0;
+    }
+
+    .nav-pill {
+      display: flex;
+      align-items: center;
+      background: rgba(255,255,255,0.1);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 100px;
+      padding: 4px;
+      gap: 2px;
+    }
+
+    .nav-link {
+      padding: 8px 20px;
+      font-size: 13px;
+      color: rgba(255,255,255,0.7);
+      border-radius: 100px;
+      transition: all 0.2s;
+    }
+    .nav-link:hover { color: #fff; background: rgba(255,255,255,0.1); }
+
+    .nav-cta {
+      padding: 8px 20px;
+      font-size: 13px;
+      font-weight: 500;
+      color: #000;
+      background: #fff;
+      border-radius: 100px;
+      transition: background 0.2s;
+    }
+    .nav-cta:hover { background: var(--color-accent); }
+
+    .hamburger {
+      display: none;
+      background: rgba(255,255,255,0.1);
+      border: none;
+      border-radius: 9999px;
+      width: 40px;
+      height: 40px;
+      cursor: pointer;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 5px;
+    }
+    .hamburger span {
+      display: block;
+      width: 18px;
+      height: 1.5px;
+      background: #fff;
+    }
+
+    .mobile-menu {
+      display: none;
+      flex-direction: column;
+      position: absolute;
+      top: 76px;
+      left: 16px;
+      right: 16px;
+      background: #1a1a1a;
+      border-radius: 16px;
+      padding: 12px;
+      gap: 2px;
+      z-index: 99;
+    }
+    .mobile-menu.flex { display: flex; }
+    .mobile-menu a {
+      padding: 12px 16px;
+      font-size: 14px;
+      color: rgba(255,255,255,0.7);
+      border-radius: 10px;
+      transition: all 0.2s;
+    }
+    .mobile-menu a:hover { color: #fff; background: rgba(255,255,255,0.08); }
+
+    /* ════════════════════════════════════════════════════════════════════════
+       SECTION 2 — HERO
+    ════════════════════════════════════════════════════════════════════════ */
+    .hero {
+      position: relative;
+      background: var(--color-dark);
+      color: #fff;
+      min-height: 88vh;
+      overflow: hidden;
+      display: flex;
+      align-items: center;
+    }
+
+    .hero-bg {
+      position: absolute;
+      inset: 0;
+      z-index: 0;
+    }
+    .hero-bg-gradient {
+      position: absolute;
+      inset: 0;
+      background:
+        radial-gradient(ellipse at 20% 50%, rgba(254,215,170,0.06) 0%, transparent 60%),
+        radial-gradient(ellipse at 80% 20%, rgba(59,130,246,0.04) 0%, transparent 50%);
+    }
+    .hero-bg-grid {
+      position: absolute;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px);
+      background-size: 60px 60px;
+    }
+
+    .hero-content {
+      position: relative;
+      z-index: 10;
+      max-width: 1200px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 80px 60px 60px;
+    }
+
+    .hero-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(254,215,170,0.1);
+      border: 1px solid rgba(254,215,170,0.2);
+      border-radius: 100px;
+      padding: 6px 16px;
+      font-size: 12px;
+      color: var(--color-accent);
+      font-family: ui-monospace, monospace;
+      margin-bottom: 32px;
+    }
+    .hero-tag-dot {
+      width: 6px;
+      height: 6px;
+      background: var(--color-accent);
+      border-radius: 50%;
+      animation: pulse 2s infinite;
+    }
+
+    .hero-h1 {
+      font-size: clamp(3rem, 6vw, 5.5rem);
+      font-weight: 500;
+      line-height: 1.08;
+      letter-spacing: -0.02em;
+      margin-bottom: 32px;
+    }
+    .hero-h1 .line-main { color: #fff; display: block; }
+    .hero-h1 .line-muted { color: rgba(255,255,255,0.35); display: block; }
+    .hero-h1 .line-accent { color: var(--color-accent); display: block; }
+
+    .hero-sub {
+      font-size: 16px;
+      color: rgba(255,255,255,0.5);
+      max-width: 480px;
+      line-height: 1.7;
+      margin-bottom: 48px;
+    }
+
+    .hero-actions {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    .btn-primary {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      background: #fff;
+      color: #000;
+      padding: 14px 28px;
+      border-radius: 100px;
+      font-size: 14px;
+      font-weight: 500;
+      transition: background 0.2s;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+    }
+    .btn-primary:hover { background: var(--color-accent); }
+    .btn-primary:hover .btn-arrow { transform: rotate(45deg); }
+
+    .btn-arrow {
+      width: 30px;
+      height: 30px;
+      background: #000;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: transform 0.3s;
+      flex-shrink: 0;
+    }
+
+    .btn-ghost {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      border: 1px solid rgba(255,255,255,0.15);
+      color: rgba(255,255,255,0.7);
+      padding: 14px 24px;
+      border-radius: 100px;
+      font-size: 14px;
+      transition: all 0.2s;
+    }
+    .btn-ghost:hover { border-color: rgba(255,255,255,0.4); color: #fff; }
+
+    .hero-badge {
+      position: absolute;
+      right: 60px;
+      bottom: 80px;
+      z-index: 10;
+      background: rgba(255,255,255,0.07);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(255,255,255,0.1);
+      border-radius: 20px;
+      padding: 16px 20px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .hero-badge-block {
+      width: 44px;
+      height: 60px;
+      background: linear-gradient(135deg, var(--color-accent), var(--color-accent-2));
+      border-radius: 10px;
+      flex-shrink: 0;
+    }
+    .hero-badge-label {
+      font-size: 10px;
+      color: rgba(255,255,255,0.4);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-bottom: 4px;
+    }
+    .hero-badge-value {
+      font-size: 13px;
+      font-weight: 500;
+      color: #fff;
+    }
+    .hero-badge-avatars {
+      display: flex;
+      align-items: center;
+      margin-left: 4px;
+    }
+    .hero-avatar {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      border: 2px solid #0F0F0F;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+      font-weight: 600;
+    }
+    .hero-avatar:nth-child(2) { margin-left: -8px; }
+    .hero-avatar-1 { background: #3b82f6; color: #fff; }
+    .hero-avatar-2 { background: var(--color-accent); color: #000; }
+
+    .hero-watermark {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      font-size: clamp(8rem, 18vw, 20rem);
+      font-weight: 700;
+      color: rgba(255,255,255,0.03);
+      white-space: nowrap;
+      line-height: 1;
+      pointer-events: none;
+      z-index: 1;
+      letter-spacing: -0.04em;
+      user-select: none;
+    }
+
+    /* ════════════════════════════════════════════════════════════════════════
+       SECTION 3 — TOOLS
+    ════════════════════════════════════════════════════════════════════════ */
+    .tools-section {
+      background: var(--color-canvas);
+      padding: 80px 60px;
+    }
+
+    .section-tag {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      font-family: ui-monospace, monospace;
+      font-size: 12px;
+      color: #888;
+      margin-bottom: 40px;
+    }
+    .section-tag-line {
+      height: 1px;
+      width: 40px;
+      background: #ccc;
+    }
+
+    .tools-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 48px;
+    }
+
+    .tools-h2 {
+      font-size: clamp(2rem, 4vw, 3.5rem);
+      font-weight: 500;
+      line-height: 1.1;
+      color: var(--color-text-1);
+      white-space: pre-line;
+    }
+
+    .tools-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 20px;
+    }
+
+    .tool-card {
+      background: var(--color-surface);
+      border-radius: 24px;
+      padding: 28px;
+      border: 1px solid var(--color-border);
+      transition: all 0.3s;
+      position: relative;
+      overflow: hidden;
+    }
+    .tool-card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 20px 40px rgba(0,0,0,0.08);
+    }
+
+    .tool-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 11px;
+      font-weight: 500;
+      padding: 4px 12px;
+      border-radius: 100px;
+      margin-bottom: 16px;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+    .tool-badge-api { background: #dcfce7; color: #166534; }
+    .tool-badge-rag { background: #ede9fe; color: #5b21b6; }
+
+    .tool-name {
+      font-size: 15px;
+      font-weight: 600;
+      margin-bottom: 8px;
+      font-family: ui-monospace, monospace;
+      color: var(--color-text-1);
+    }
+
+    .tool-desc {
+      font-size: 13px;
+      color: var(--color-text-2);
+      line-height: 1.6;
+    }
+
+    .tool-watermark {
+      position: absolute;
+      bottom: 16px;
+      right: 20px;
+      font-size: 72px;
+      font-weight: 400;
+      color: rgba(0,0,0,0.04);
+      font-family: 'Playfair Display', serif;
+      font-style: italic;
+      line-height: 1;
+      pointer-events: none;
+      user-select: none;
+    }
+
+    /* ════════════════════════════════════════════════════════════════════════
+       SECTION 4 — RAG
+    ════════════════════════════════════════════════════════════════════════ */
+    .rag-section {
+      background: var(--color-canvas);
+      padding: 0 16px 16px;
+    }
+
+    .rag-card {
+      background: var(--color-surface);
+      border-radius: 40px;
+      padding: 80px 60px;
+    }
+
+    .rag-inner {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 64px;
+      align-items: start;
+    }
+
+    .rag-label {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: var(--color-text-3);
+      margin-bottom: 20px;
+    }
+
+    .rag-h2 {
+      font-size: clamp(2rem, 3.5vw, 3rem);
+      font-weight: 500;
+      line-height: 1.1;
+      color: var(--color-text-1);
+      margin-bottom: 20px;
+    }
+
+    .rag-para {
+      font-size: 14px;
+      color: var(--color-text-2);
+      line-height: 1.8;
+      margin-bottom: 32px;
+    }
+
+    .rag-steps { display: flex; flex-direction: column; gap: 0; }
+
+    .rag-step {
+      display: flex;
+      align-items: flex-start;
+      gap: 16px;
+      padding: 16px 0;
+      border-bottom: 1px solid #f1f5f9;
+    }
+    .rag-step:last-child { border-bottom: none; }
+
+    .rag-step-num {
+      width: 28px;
+      height: 28px;
+      background: var(--color-dark);
+      color: #fff;
+      border-radius: 50%;
+      font-size: 11px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .rag-step-title {
+      font-size: 13px;
+      font-weight: 600;
+      font-family: ui-monospace, monospace;
+      color: var(--color-text-1);
+      margin-bottom: 2px;
+    }
+
+    .rag-step-desc {
+      font-size: 12px;
+      color: var(--color-text-3);
+      line-height: 1.5;
+    }
+
+    /* Right column */
+    .rag-right-container {
+      background: var(--color-surface-2);
+      border-radius: 28px;
+      padding: 32px;
+    }
+
+    .rag-right-title {
+      font-size: 14px;
+      font-weight: 600;
+      color: var(--color-text-1);
+      margin-bottom: 20px;
+    }
+
+    .collection-card {
+      background: var(--color-surface);
+      border-radius: 16px;
+      padding: 20px;
+      margin-bottom: 12px;
+      border: 1px solid var(--color-border);
+    }
+
+    .collection-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+
+    .collection-name {
+      font-size: 12px;
+      font-weight: 600;
+      font-family: ui-monospace, monospace;
+      color: #374151;
+    }
+
+    .collection-badge {
+      font-size: 10px;
+      padding: 2px 8px;
+      border-radius: 100px;
+      font-weight: 500;
+    }
+    .collection-badge-sam { background: #ede9fe; color: #5b21b6; }
+    .collection-badge-pp { background: #fef3c7; color: #92400e; }
+
+    .collection-desc {
+      font-size: 11px;
+      color: var(--color-text-3);
+      line-height: 1.5;
+    }
+
+    .embedding-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: var(--color-surface);
+      border-radius: 12px;
+      padding: 14px 16px;
+      border: 1px solid var(--color-border);
+      margin-top: 4px;
+    }
+
+    .embedding-icon {
+      width: 32px;
+      height: 32px;
+      background: var(--color-dark);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    .embedding-label {
+      font-size: 11px;
+      color: var(--color-text-3);
+      margin-bottom: 2px;
+    }
+
+    .embedding-name {
+      font-size: 12px;
+      font-weight: 600;
+      font-family: ui-monospace, monospace;
+      color: var(--color-text-1);
+    }
+
+    /* ════════════════════════════════════════════════════════════════════════
+       SECTION 5 — STATS
+    ════════════════════════════════════════════════════════════════════════ */
+    .stats-section {
+      padding: 0 60px 80px;
+      background: var(--color-canvas);
+    }
+
+    .stats-card {
+      background: var(--color-surface);
+      border-radius: 40px;
+      padding: 48px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+    }
+
+    .stat-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 28px 16px;
+      border-bottom: 1px solid #f1f5f9;
+      border-radius: 16px;
+      transition: background 0.2s;
+    }
+    .stat-row:last-child { border-bottom: none; }
+    .stat-row:hover { background: #f9fafb; }
+
+    .stat-desc {
+      font-size: 14px;
+      color: var(--color-text-2);
+      max-width: 400px;
+      line-height: 1.6;
+    }
+
+    .stat-right { text-align: right; flex-shrink: 0; }
+
+    .stat-num {
+      font-size: clamp(2.5rem, 5vw, 4rem);
+      font-weight: 500;
+      line-height: 1;
+      color: var(--color-text-1);
+    }
+
+    .stat-label {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--color-text-3);
+      margin-top: 4px;
+    }
+
+    /* ════════════════════════════════════════════════════════════════════════
+       SECTION 6 — CTA / FOOTER
+    ════════════════════════════════════════════════════════════════════════ */
+    .cta-section {
+      background: var(--color-dark);
+      color: #fff;
+      border-radius: 40px;
+      margin: 0 16px 16px;
+      padding: 80px 60px 0;
+      position: relative;
+      overflow: hidden;
+      text-align: center;
+    }
+
+    .cta-bg {
+      position: absolute;
+      inset: 0;
+      background: radial-gradient(ellipse at 50% 0%, rgba(254,215,170,0.08) 0%, transparent 60%);
+      pointer-events: none;
+    }
+
+    .cta-content { position: relative; z-index: 1; }
+
+    .cta-h2-line {
+      display: block;
+      font-size: clamp(2.5rem, 5vw, 5rem);
+      font-weight: 500;
+      line-height: 1.08;
+    }
+    .cta-h2-solid { color: #fff; }
+    .cta-h2-grad {
+      background: linear-gradient(135deg, #fff, rgba(255,255,255,0.35));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .cta-sub {
+      font-size: 15px;
+      color: rgba(255,255,255,0.4);
+      margin-top: 20px;
+      margin-bottom: 40px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .cta-buttons {
+      display: flex;
+      justify-content: center;
+      gap: 16px;
+      flex-wrap: wrap;
+      position: relative;
+      z-index: 1;
+      padding-bottom: 20px;
+    }
+
+    .cta-btn-main {
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      background: #fff;
+      color: #000;
+      padding: 16px 32px;
+      border-radius: 100px;
+      font-size: 15px;
+      font-weight: 500;
+      transition: background 0.2s;
+    }
+    .cta-btn-main:hover { background: var(--color-accent); }
+    .cta-btn-main:hover .cta-plus { transform: rotate(90deg); }
+
+    .cta-plus {
+      width: 32px;
+      height: 32px;
+      background: #000;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      color: #fff;
+      flex-shrink: 0;
+      transition: transform 0.3s;
+    }
+
+    .cta-btn-sec {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      border: 1px solid rgba(255,255,255,0.2);
+      color: rgba(255,255,255,0.7);
+      padding: 16px 24px;
+      border-radius: 100px;
+      font-size: 14px;
+      transition: all 0.2s;
+    }
+    .cta-btn-sec:hover { border-color: rgba(255,255,255,0.5); color: #fff; }
+
+    .footer-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+      padding: 24px 60px 32px;
+      border-top: 1px solid rgba(255,255,255,0.07);
+      margin-top: 48px;
+      position: relative;
+      z-index: 1;
+    }
+
+    .footer-copy {
+      font-size: 12px;
+      color: rgba(255,255,255,0.3);
+    }
+
+    .footer-links {
+      display: flex;
+      align-items: center;
+      gap: 24px;
+    }
+
+    .footer-links a {
+      font-size: 12px;
+      color: rgba(255,255,255,0.3);
+      transition: color 0.2s;
+    }
+    .footer-links a:hover { color: rgba(255,255,255,0.7); }
+
+    /* ════════════════════════════════════════════════════════════════════════
+       RESPONSIVE
+    ════════════════════════════════════════════════════════════════════════ */
+    @media (max-width: 1024px) {
+      .rag-inner { grid-template-columns: 1fr; }
+      .hero-badge { display: none; }
+    }
+
+    @media (max-width: 768px) {
+      body { padding: 0 0 12px; }
+      .canvas { border-radius: 0; box-shadow: none; }
+
+      /* Navbar */
+      .navbar { padding: 16px 20px; }
+      .nav-pill { display: none; }
+      .hamburger { display: flex; }
+
+      /* Hero */
+      .hero-content { padding: 80px 24px 48px; }
+      .hero-h1 { font-size: 2.8rem; }
+      .hero-sub { font-size: 14px; }
+      .hero-actions { flex-direction: column; align-items: flex-start; }
+      .hero-badge { display: none; }
+
+      /* Tools */
+      .tools-section { padding: 48px 24px; }
+      .tools-header { flex-direction: column; gap: 16px; }
+
+      /* RAG */
+      .rag-section { padding: 0 12px 12px; }
+      .rag-card { padding: 48px 24px; border-radius: 24px; }
+      .rag-inner { grid-template-columns: 1fr; gap: 40px; }
+
+      /* Stats */
+      .stats-section { padding: 0 24px 48px; }
+      .stats-card { padding: 32px 24px; border-radius: 24px; }
+      .stat-row { flex-direction: column; align-items: flex-start; gap: 12px; }
+      .stat-right { text-align: left; }
+
+      /* CTA */
+      .cta-section { padding: 48px 24px 0; margin: 0 0 12px; border-radius: 24px; }
+      .footer-bar { padding: 24px 24px 32px; flex-direction: column; text-align: center; }
+      .footer-links { justify-content: center; flex-wrap: wrap; gap: 16px; }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ══ Sticky Navbar ══════════════════════════════════════════════════════ -->
+  <header style="position:sticky;top:0;z-index:100;">
+    <nav class="navbar">
+      <a href="#" class="nav-logo">GC</a>
+
+      <div class="nav-pill">
+        <a href="#tools" class="nav-link">Tools</a>
+        <a href="#rag" class="nav-link">RAG</a>
+        <a href="#stats" class="nav-link">Stats</a>
+        <a href="https://github.com/fatinm1/FastMCP" target="_blank" rel="noopener" class="nav-cta">GitHub →</a>
+      </div>
+
+      <button class="hamburger" id="mobile-menu-btn" aria-label="Open menu">
+        <span></span><span></span><span></span>
+      </button>
+    </nav>
+
+    <div class="mobile-menu hidden" id="mobile-menu">
+      <a href="#tools">Tools</a>
+      <a href="#rag">RAG</a>
+      <a href="#stats">Stats</a>
+      <a href="https://github.com/fatinm1/FastMCP" target="_blank" rel="noopener">GitHub →</a>
+    </div>
+  </header>
+
+  <div class="canvas">
+
+    <!-- ══ Hero ══════════════════════════════════════════════════════════════ -->
+    <section class="hero">
+      <div class="hero-bg">
+        <div class="hero-bg-gradient"></div>
+        <div class="hero-bg-grid"></div>
+      </div>
+
+      <div class="hero-content">
+        <div class="hero-tag fade-in">
+          <div class="hero-tag-dot"></div>
+          Open Source · MIT License
+        </div>
+
+        <h1 class="hero-h1 fade-in">
+          <span class="line-main">GovCon intel</span>
+          <span class="line-muted">for AI agents —</span>
+          <span class="line-accent">live &amp; semantic</span>
+        </h1>
+
+        <p class="hero-sub fade-in">
+          10 MCP tools connecting AI agents to SAM.gov opportunities, USASpending award data, and a RAG layer over solicitation PDFs. Built for GovCon BD teams.
+        </p>
+
+        <div class="hero-actions fade-in">
+          <a href="https://github.com/fatinm1/FastMCP" target="_blank" rel="noopener" class="btn-primary">
+            View on GitHub
+            <span class="btn-arrow">
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                <path d="M2 12L12 2M12 2H5M12 2V9" stroke="#fff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </span>
+          </a>
+          <a href="#tools" class="btn-ghost">Explore tools ↓</a>
+        </div>
+      </div>
+
+      <!-- Floating badge -->
+      <div class="hero-badge fade-in">
+        <div class="hero-badge-block"></div>
+        <div>
+          <div class="hero-badge-label">Status</div>
+          <div class="hero-badge-value">12/12 tests passing</div>
+        </div>
+        <div class="hero-badge-avatars">
+          <div class="hero-avatar hero-avatar-1">FM</div>
+          <div class="hero-avatar hero-avatar-2">AI</div>
+        </div>
+      </div>
+
+      <div class="hero-watermark">govcon</div>
+    </section>
+
+    <!-- ══ Tools Grid ═════════════════════════════════════════════════════ -->
+    <section id="tools" class="tools-section">
+      <div class="section-tag fade-in">
+        <span style="color:#bbb">01</span>
+        <div class="section-tag-line"></div>
+        <span>02 · 03 · 04</span>
+      </div>
+
+      <div class="tools-header">
+        <h2 class="tools-h2 fade-in">10 tools.&#10;Two data sources.&#10;One MCP server.</h2>
+      </div>
+
+      <div class="tools-grid">
+
+        <div class="tool-card fade-in">
+          <div class="tool-badge tool-badge-api">● Live API</div>
+          <div class="tool-name">search_opportunities</div>
+          <div class="tool-desc">Live RFPs from SAM.gov filtered by NAICS, agency, keyword, and set-aside type.</div>
+          <div class="tool-watermark">01</div>
+        </div>
+
+        <div class="tool-card fade-in">
+          <div class="tool-badge tool-badge-api">● Live API</div>
+          <div class="tool-name">get_opportunity_detail</div>
+          <div class="tool-desc">Full notice details — description, contacts, attachments, and award data.</div>
+          <div class="tool-watermark">02</div>
+        </div>
+
+        <div class="tool-card fade-in">
+          <div class="tool-badge tool-badge-api">● Live API</div>
+          <div class="tool-name">get_award_history</div>
+          <div class="tool-desc">Past federal awards for any vendor from USASpending, sorted by value.</div>
+          <div class="tool-watermark">03</div>
+        </div>
+
+        <div class="tool-card fade-in">
+          <div class="tool-badge tool-badge-api">● Live API</div>
+          <div class="tool-name">get_vendor_profile</div>
+          <div class="tool-desc">Full competitive profile — win totals, top agencies, NAICS footprint.</div>
+          <div class="tool-watermark">04</div>
+        </div>
+
+        <div class="tool-card fade-in">
+          <div class="tool-badge tool-badge-api">● Live API</div>
+          <div class="tool-name">search_awards_by_naics</div>
+          <div class="tool-desc">All contracts in a NAICS code — market landscape and top vendor rankings.</div>
+          <div class="tool-watermark">05</div>
+        </div>
+
+        <div class="tool-card fade-in">
+          <div class="tool-badge tool-badge-api">● Live API</div>
+          <div class="tool-name">get_agency_spending</div>
+          <div class="tool-desc">Top recipients and spend breakdown for any federal agency by fiscal year.</div>
+          <div class="tool-watermark">06</div>
+        </div>
+
+        <div class="tool-card fade-in">
+          <div class="tool-badge tool-badge-api">● Live API</div>
+          <div class="tool-name">get_incumbent</div>
+          <div class="tool-desc">Who holds contracts at an agency in a capability area — recompete intel.</div>
+          <div class="tool-watermark">07</div>
+        </div>
+
+        <div class="tool-card fade-in">
+          <div class="tool-badge tool-badge-rag">◆ RAG</div>
+          <div class="tool-name">ingest_solicitation</div>
+          <div class="tool-desc">Download and index a SAM.gov solicitation's PDF attachments into ChromaDB.</div>
+          <div class="tool-watermark">08</div>
+        </div>
+
+        <div class="tool-card fade-in">
+          <div class="tool-badge tool-badge-rag">◆ RAG</div>
+          <div class="tool-name">search_solicitation_content</div>
+          <div class="tool-desc">Semantic search over ingested SOW, Section L, and Section M content.</div>
+          <div class="tool-watermark">09</div>
+        </div>
+
+        <div class="tool-card fade-in">
+          <div class="tool-badge tool-badge-rag">◆ RAG</div>
+          <div class="tool-name">match_past_performance</div>
+          <div class="tool-desc">Rank your past performance narratives against a new RFP's requirements.</div>
+          <div class="tool-watermark">10</div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ══ RAG Explainer ══════════════════════════════════════════════════ -->
+    <section id="rag" class="rag-section">
+      <div class="rag-card">
+        <div class="rag-inner">
+
+          <!-- Left -->
+          <div class="fade-in">
+            <div class="rag-label">RAG Layer</div>
+            <h2 class="rag-h2">The content API filters can't reach</h2>
+            <p class="rag-para">
+              SAM.gov metadata tells you an RFP exists. The 200-page PDF tells you whether you can win it. The RAG layer indexes solicitation documents and past performance write-ups for semantic search.
+            </p>
+
+            <div class="rag-steps">
+              <div class="rag-step">
+                <div class="rag-step-num">1</div>
+                <div>
+                  <div class="rag-step-title">search_opportunities(naics="541512")</div>
+                  <div class="rag-step-desc">Find open RFPs in your capability area</div>
+                </div>
+              </div>
+              <div class="rag-step">
+                <div class="rag-step-num">2</div>
+                <div>
+                  <div class="rag-step-title">get_opportunity_detail(notice_id)</div>
+                  <div class="rag-step-desc">Pull attachment links from the notice</div>
+                </div>
+              </div>
+              <div class="rag-step">
+                <div class="rag-step-num">3</div>
+                <div>
+                  <div class="rag-step-title">ingest_solicitation(notice_id)</div>
+                  <div class="rag-step-desc">Download PDFs, chunk, embed, and index</div>
+                </div>
+              </div>
+              <div class="rag-step">
+                <div class="rag-step-num">4</div>
+                <div>
+                  <div class="rag-step-title">search_solicitation_content("clearance")</div>
+                  <div class="rag-step-desc">Semantic search across the SOW content</div>
+                </div>
+              </div>
+              <div class="rag-step">
+                <div class="rag-step-num">5</div>
+                <div>
+                  <div class="rag-step-title">match_past_performance(rfp_text)</div>
+                  <div class="rag-step-desc">Rank your best-fit past performance narratives</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Right -->
+          <div class="fade-in">
+            <div class="rag-right-container">
+              <div class="rag-right-title">ChromaDB Collections</div>
+
+              <div class="collection-card">
+                <div class="collection-header">
+                  <div class="collection-name">solicitations</div>
+                  <div class="collection-badge collection-badge-sam">SAM.gov PDFs</div>
+                </div>
+                <div class="collection-desc">
+                  Chunks from ingested solicitation PDFs — SOW, Section L, Section M, PWS. Metadata: notice_id, agency, title, chunk_index.
+                </div>
+              </div>
+
+              <div class="collection-card">
+                <div class="collection-header">
+                  <div class="collection-name">past_performance</div>
+                  <div class="collection-badge collection-badge-pp">Your narratives</div>
+                </div>
+                <div class="collection-desc">
+                  Your past performance write-ups. Metadata: project_name, contract_number, agency, NAICS, period.
+                </div>
+              </div>
+
+              <div class="embedding-row">
+                <div class="embedding-icon">
+                  <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                    <circle cx="8" cy="8" r="3" fill="#fed7aa"/>
+                    <path d="M8 1v2M8 13v2M1 8h2M13 8h2M3.22 3.22l1.41 1.41M11.37 11.37l1.41 1.41M3.22 12.78l1.41-1.41M11.37 4.63l1.41-1.41" stroke="#fed7aa" stroke-width="1.2" stroke-linecap="round"/>
+                  </svg>
+                </div>
+                <div>
+                  <div class="embedding-label">Embedding model · local, no API key</div>
+                  <div class="embedding-name">all-MiniLM-L6-v2</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- ══ Stats ══════════════════════════════════════════════════════════ -->
+    <section id="stats" class="stats-section" style="padding-top:80px;">
+      <div class="stats-card fade-in">
+
+        <div class="stat-row">
+          <div class="stat-desc">
+            Live federal contract opportunities across all agencies and set-aside types, updated daily on SAM.gov
+          </div>
+          <div class="stat-right">
+            <div class="stat-num">10</div>
+            <div class="stat-label">MCP Tools</div>
+          </div>
+        </div>
+
+        <div class="stat-row">
+          <div class="stat-desc">
+            Unit tests passing with mocked API responses — zero disk I/O in the test suite, fully portable
+          </div>
+          <div class="stat-right">
+            <div class="stat-num">12/12</div>
+            <div class="stat-label">Tests Passing</div>
+          </div>
+        </div>
+
+        <div class="stat-row">
+          <div class="stat-desc">
+            Public government data sources — SAM.gov (free API key) and USASpending.gov (no key required)
+          </div>
+          <div class="stat-right">
+            <div class="stat-num">2</div>
+            <div class="stat-label">Data Sources</div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ══ CTA + Footer ═══════════════════════════════════════════════════ -->
+    <section class="cta-section">
+      <div class="cta-bg"></div>
+
+      <div class="cta-content fade-in">
+        <h2>
+          <span class="cta-h2-line cta-h2-solid">Connect any agent</span>
+          <span class="cta-h2-line cta-h2-grad">to GovCon data</span>
+          <span class="cta-h2-line cta-h2-grad">in one server.</span>
+        </h2>
+        <p class="cta-sub">Claude Desktop · Cursor · LangGraph · CrewAI · Any MCP client</p>
+
+        <div class="cta-buttons">
+          <a href="https://github.com/fatinm1/FastMCP" target="_blank" rel="noopener" class="cta-btn-main">
+            Get Started
+            <span class="cta-plus">+</span>
+          </a>
+          <a href="https://sam.gov/profile/details" target="_blank" rel="noopener" class="cta-btn-sec">
+            Get SAM.gov API Key →
+          </a>
+        </div>
+      </div>
+
+      <div class="footer-bar">
+        <span class="footer-copy">© 2026 govcon-mcp · Fatin Mojumder · MIT License</span>
+        <div class="footer-links">
+          <a href="https://github.com/fatinm1/FastMCP" target="_blank" rel="noopener">GitHub</a>
+          <a href="https://sam.gov/profile/details" target="_blank" rel="noopener">SAM.gov</a>
+          <a href="https://api.usaspending.gov" target="_blank" rel="noopener">USASpending</a>
+        </div>
+      </div>
+    </section>
+
+  </div><!-- /.canvas -->
+
+  <script>
+    // Scroll reveal
+    const obs = new IntersectionObserver((entries) => {
+      entries.forEach(e => {
+        if (e.isIntersecting) {
+          e.target.classList.add('visible');
+          obs.unobserve(e.target);
+        }
+      });
+    }, { threshold: 0.08 });
+    document.querySelectorAll('.fade-in').forEach(el => obs.observe(el));
+
+    // Mobile menu toggle
+    const menuBtn = document.getElementById('mobile-menu-btn');
+    const mobileMenu = document.getElementById('mobile-menu');
+    if (menuBtn && mobileMenu) {
+      menuBtn.addEventListener('click', () => {
+        mobileMenu.classList.toggle('hidden');
+        mobileMenu.classList.toggle('flex');
+      });
+      // Close on link click
+      mobileMenu.querySelectorAll('a').forEach(a => {
+        a.addEventListener('click', () => {
+          mobileMenu.classList.add('hidden');
+          mobileMenu.classList.remove('flex');
+        });
+      });
+    }
+  </script>
+</body>
+</html>
