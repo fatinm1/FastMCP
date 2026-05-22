@@ -68,10 +68,8 @@
       align-items: center;
       justify-content: space-between;
       padding: 20px 40px;
-      background: rgba(15,15,15,0.92);
-      backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
-      border-bottom: 1px solid rgba(255,255,255,0.08);
+      background: transparent;
+      border-bottom: none;
     }
 
     .nav-logo {
@@ -824,7 +822,13 @@
       .canvas { border-radius: 0; box-shadow: none; }
 
       /* Navbar */
-      .navbar { padding: 16px 20px; }
+      .navbar {
+        padding: 16px 20px;
+        background: rgba(15,15,15,0.92);
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        border-bottom: 1px solid rgba(255,255,255,0.08);
+      }
       .nav-pill { display: none; }
       .hamburger { display: flex; }
 
