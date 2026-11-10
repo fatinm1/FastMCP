@@ -239,3 +239,11 @@ Once ingested, call `match_past_performance` from any MCP client to surface rele
 ## License
 
 MIT — see [LICENSE](LICENSE) file.
+
+## Installation verification and test scope
+
+Build with `python -m build`, install the wheel into a clean virtual environment, then run `govcon-mcp --help`. The wheel includes the server entrypoint and clients. Embedding weights load on the first retrieval operation, not during server import.
+
+`pytest tests/test_tools.py tests/test_rag.py` runs with mocked HTTP and deterministic offline test embeddings. Those fixtures verify orchestration and isolation, not real semantic model quality. Live API tests are optional and require credentials; do not use them in default CI. Benchmark retrieval quality separately on a labeled corpus before making accuracy claims.
+
+PDF ingestion accepts HTTPS government hosts, refuses redirects, and caps downloads at 20MB. Administrators can explicitly allow additional trusted hostnames with `GOVCON_PDF_HOSTS`. Do not add untrusted hosts; network egress policies remain necessary in remotely hosted deployments.
