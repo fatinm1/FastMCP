@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 import io
+import os
+from urllib.parse import urlparse
 
 import chromadb
 import httpx
 from pypdf import PdfReader
-from sentence_transformers import SentenceTransformer
 
-model = SentenceTransformer("all-MiniLM-L6-v2")
+model = None
 
 _solicitations_col: chromadb.Collection | None = None
 _past_performance_col: chromadb.Collection | None = None
@@ -52,6 +53,10 @@ def _chunk_text(text: str, chunk_size: int = 400, overlap: int = 50) -> list[str
 
 
 def _embed(texts: list[str]) -> list[list[float]]:
+    global model
+    if model is None:
+        from sentence_transformers import SentenceTransformer
+        model = SentenceTransformer("all-MiniLM-L6-v2")
     return model.encode(texts, convert_to_numpy=True).tolist()
 
 
@@ -60,13 +65,28 @@ def ingest_solicitation_pdf(
     notice_id: str,
     metadata: dict,
 ) -> dict:
+    parsed = urlparse(pdf_url)
+    host = (parsed.hostname or "").lower()
+    extra_hosts = {h.strip().lower() for h in os.getenv("GOVCON_PDF_HOSTS", "").split(",") if h.strip()}
+    if parsed.scheme != "https" or parsed.username or parsed.password or parsed.port not in (None, 443) or not (host.endswith(".gov") or host in extra_hosts):
+        return {"notice_id": notice_id, "error": "PDF URL must use HTTPS on a government or explicitly configured host"}
+    maximum = 20 * 1024 * 1024
     try:
-        with httpx.Client(timeout=60) as client:
-            resp = client.get(pdf_url)
-            resp.raise_for_status()
-            pdf_bytes = resp.content
-    except httpx.HTTPError as exc:
-        return {"notice_id": notice_id, "error": f"Failed to download PDF: {exc}"}
+        with httpx.Client(timeout=60, follow_redirects=False) as client:
+            with client.stream("GET", pdf_url) as resp:
+                resp.raise_for_status()
+                if resp.status_code != 200:
+                    return {"notice_id": notice_id, "error": "PDF redirects are not allowed"}
+                chunks_downloaded = []
+                size = 0
+                for chunk in resp.iter_bytes():
+                    size += len(chunk)
+                    if size > maximum:
+                        return {"notice_id": notice_id, "error": "PDF exceeds 20MB download limit"}
+                    chunks_downloaded.append(chunk)
+                pdf_bytes = b"".join(chunks_downloaded)
+    except httpx.HTTPError:
+        return {"notice_id": notice_id, "error": "Failed to download PDF"}
 
     try:
         reader = PdfReader(io.BytesIO(pdf_bytes))

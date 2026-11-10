@@ -1,0 +1,19 @@
+name: CI
+on: [push, pull_request]
+jobs:
+  package-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: pip install build pytest respx httpx chromadb pypdf python-dotenv fastmcp
+      - run: python -m build --wheel
+      - name: Verify wheel outside the source checkout
+        run: |
+          python -m venv /tmp/govcon-wheel
+          /tmp/govcon-wheel/bin/pip install --no-deps dist/*.whl
+          cd /tmp
+          /tmp/govcon-wheel/bin/python -c "import importlib.util; assert importlib.util.find_spec('server') is not None"
+      - run: python -m pytest tests -q

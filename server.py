@@ -463,5 +463,10 @@ def match_past_performance(
         return {"error": str(exc)}
 
 
-if __name__ == "__main__":
+def main() -> None:
+    """Console entry point shared by checkout and installed-wheel execution."""
     mcp.run()
+
+
+if __name__ == "__main__":
+    main()

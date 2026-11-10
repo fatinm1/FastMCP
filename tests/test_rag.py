@@ -12,7 +12,19 @@ import clients.rag as rag
 
 
 @pytest.fixture(autouse=True)
-def ephemeral_rag():
+def ephemeral_rag(monkeypatch):
+    # Offline deterministic vectors test retrieval plumbing, not semantic quality.
+    import hashlib
+    def embed(texts):
+        vectors = []
+        for text in texts:
+            vector = [0.0] * 256
+            for word in text.lower().split():
+                index = int(hashlib.sha256(word.encode()).hexdigest(), 16) % 256
+                vector[index] += 1.0
+            vectors.append(vector)
+        return vectors
+    monkeypatch.setattr(rag, "_embed", embed)
     rag.init_collections(chromadb.EphemeralClient())
     yield
 
@@ -110,3 +122,7 @@ def test_ingest_empty_pdf_text():
         )
 
     assert "error" in result
+
+@pytest.mark.parametrize("url", ["http://example.gov/a.pdf", "https://localhost/a.pdf", "https://127.0.0.1/a.pdf", "https://example.com/a.pdf", "https://user:pass@example.gov/a.pdf"])
+def test_untrusted_pdf_urls_rejected(url):
+    assert "error" in rag.ingest_solicitation_pdf(url, "sample", {})
